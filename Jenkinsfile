@@ -4,7 +4,10 @@ pipeline {
     environment {
         API_IMAGE  = 'arunelak/tutorials-api'
         UI_IMAGE   = 'arunelak/tutorials-ui'
-        APP_SERVER = 'ubuntu@52.87.175.46'
+        // Deploy over the VPC-private IP: the app-sg SSH rule references
+        // jenkins-sg as a source group, which only matches private traffic.
+        APP_SERVER = 'ubuntu@172.31.25.32'
+        // Smoke test hits the public URL, as a real user would.
         APP_URL    = 'http://52.87.175.46'
     }
 
