@@ -52,13 +52,13 @@ Real issues encountered while building this project, how they were diagnosed, an
 
 **Fix.** `apt install openjdk-21-jre-headless`, pointed the `java` alternative at 21, `systemctl reset-failed jenkins && systemctl restart jenkins`.
 
-## 7. First push to main did not trigger a build (webhook OK)
+## 7. Pushes to main never triggered builds (webhook delivering 200 OK)
 
 **Symptom.** Merging to `main` produced no Jenkins build, yet GitHub's webhook deliveries page showed `200 OK` responses from `/github-webhook/`.
 
-**Cause.** The "GitHub hook trigger for GITScm polling" trigger only fires for jobs Jenkins has built at least once — before the first run it has no SCM data to match the webhook payload against.
+**Diagnosis.** First suspected the known quirk that the hook trigger only arms after a first build, so build #1 was run manually — but later pushes still didn't trigger. Fetched the job's `config.xml` over the REST API: the job-level `<triggers/>` element was **empty**. The "GitHub hook trigger for GITScm polling" checkbox had never actually been saved.
 
-**Fix.** Triggered build #1 manually; subsequent pushes to `main` trigger automatically.
+**Fix.** Patched `config.xml` to add `com.cloudbees.jenkins.GitHubPushTrigger` and POSTed it back. The next merge to `main` triggered build #3 automatically. Lesson: when a webhook shows 200 but nothing runs, compare what GitHub *sent* with what Jenkins is *configured to listen for* — the delivery log only proves the HTTP path.
 
 ## 8. `ERROR: Could not find credentials entry with ID 'dockerhub-creds'`
 
@@ -69,6 +69,14 @@ Real issues encountered while building this project, how they were diagnosed, an
 `/user/<name>/credentials/store/user/domain/_/api/json` contained both credentials — they had been added under **User » <name>** (personal scope) instead of **System » Global**. Pipeline jobs cannot read user-scoped credentials.
 
 **Fix.** Re-created both credentials in the System → Global store (via `createCredentials` REST calls). Lesson: in the credentials UI, always pick the **System** store, not the store under your own username.
+
+## 9. Deploy stage: `ssh: connect to host 52.87.175.46 port 22: Connection timed out`
+
+**Symptom.** Build #2 pushed images fine but the Deploy stage timed out SSHing from Jenkins to the app server's public IP.
+
+**Diagnosis.** The `app-sg` rule allows port 22 *from the jenkins-sg security group*. Source-security-group rules only match traffic arriving over **VPC-private addresses** — connecting to the public IP routes the traffic outside the rule's scope, so it was silently dropped.
+
+**Fix.** The Jenkinsfile now deploys to the app server's private IP (`172.31.25.32`); the smoke test still uses the public URL, as a real user would. Alternative would have been allowing the Jenkins server's public IP in the SG, but private-IP traffic is free, faster, and doesn't change when instances restart... unlike public IPs.
 
 ## Everyday debugging commands used
 
