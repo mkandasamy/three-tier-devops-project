@@ -60,6 +60,16 @@ Real issues encountered while building this project, how they were diagnosed, an
 
 **Fix.** Triggered build #1 manually; subsequent pushes to `main` trigger automatically.
 
+## 8. `ERROR: Could not find credentials entry with ID 'dockerhub-creds'`
+
+**Symptom.** Build #1 failed at the *Push to Docker Hub* stage with the error above, even though the credential was visible in the Jenkins credentials screen.
+
+**Diagnosis.** Queried both credential stores over the REST API:
+`/credentials/store/system/domain/_/api/json` was **empty**, while
+`/user/<name>/credentials/store/user/domain/_/api/json` contained both credentials — they had been added under **User » <name>** (personal scope) instead of **System » Global**. Pipeline jobs cannot read user-scoped credentials.
+
+**Fix.** Re-created both credentials in the System → Global store (via `createCredentials` REST calls). Lesson: in the credentials UI, always pick the **System** store, not the store under your own username.
+
 ## Everyday debugging commands used
 
 ```bash
